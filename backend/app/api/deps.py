@@ -23,8 +23,8 @@ def get_embedder() -> LocalEmbedder:
 @lru_cache()
 def get_llm_service() -> OpenRouterService:
     api_key = os.getenv("OPENROUTER_API_KEY", "")
-    primary_model = os.getenv("LLM_MODEL", "google/gemini-2.5-flash:free")
-    fallback_model = os.getenv("LLM_MODEL_FALLBACK", "deepseek/deepseek-r1:free")
+    primary_model = os.getenv("LLM_MODEL", "google/gemini-2.5-flash")
+    fallback_model = os.getenv("LLM_MODEL_FALLBACK", "google/gemini-2.5-flash")
     max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
     temperature = float(os.getenv("LLM_TEMPERATURE", "0.3"))
     return OpenRouterService(

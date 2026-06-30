@@ -13,7 +13,7 @@ class LocalEmbedder(BaseEmbedder):
         self._model = None
         self.use_local = os.getenv("USE_LOCAL_MODELS", "false").lower() == "true"
         self.hf_token = os.getenv("HF_TOKEN", "")
-        self.api_url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/{self.model_name}"
+        self.api_url = f"https://api-inference.huggingface.co/models/sentence-transformers/{self.model_name}"
         
     @property
     def model(self):
