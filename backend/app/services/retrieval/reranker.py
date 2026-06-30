@@ -1,6 +1,5 @@
 import logging
 import os
-import httpx
 from typing import List, Dict, Any
 from app.services.vector_store.base import VectorResult
 
@@ -11,7 +10,6 @@ class CrossEncoderReranker:
         self.model_name = model_name
         self.use_local = os.getenv("USE_LOCAL_MODELS", "false").lower() == "true"
         self.hf_token = os.getenv("HF_TOKEN", "")
-        self.api_url = f"https://api-inference.huggingface.co/models/{self.model_name}"
         self.model = None
         self.is_loaded = False
         
@@ -27,7 +25,14 @@ class CrossEncoderReranker:
             except Exception as e:
                 logger.error(f"Failed to load CrossEncoder model: {e}")
         else:
-            self.is_loaded = True # HTTP API is always "loaded"
+            try:
+                from huggingface_hub import InferenceClient
+                self._hf_client = InferenceClient(token=self.hf_token)
+                self.is_loaded = True
+            except ImportError:
+                logger.error("huggingface_hub not installed. Reranker disabled.")
+                self.is_loaded = False
+                self._hf_client = None
 
     def rerank(self, query: str, results: List[VectorResult], top_k: int = 5) -> List[VectorResult]:
         if not self.is_loaded or not results:
@@ -43,23 +48,22 @@ class CrossEncoderReranker:
                 if not self.hf_token:
                     logger.warning("HF_TOKEN is missing!")
                 
-                headers = {"Authorization": f"Bearer {self.hf_token}"} if self.hf_token else {}
-                inputs = [{"text": query, "text_pair": res.payload.get("content", "")} for res in results]
-                
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.post(self.api_url, headers=headers, json={"inputs": inputs, "options": {"wait_for_model": True}})
-                    response.raise_for_status()
-                    scores_data = response.json()
+                if self._hf_client:
+                    # HF API expects [{"text": q, "text_pair": c}] format for sentence-transformers payload?
+                    # Wait, InferenceClient doesn't have a direct "cross_encoder" method. It has text_classification or custom post.
+                    # We can use _hf_client.post()
+                    api_url = f"https://api-inference.huggingface.co/models/{self.model_name}"
+                    inputs = [{"text": query, "text_pair": res.payload.get("content", "")} for res in results]
                     
-                    # HF Inference API for cross-encoder returns a list of lists of dicts or list of floats
-                    # If it's a classification model, it might return [{"label": "LABEL_0", "score": 0.9}, ...]
+                    import json
+                    response_bytes = self._hf_client.post(json={"inputs": inputs, "options": {"wait_for_model": True}}, model=self.model_name)
+                    scores_data = json.loads(response_bytes.decode("utf-8"))
+                    
                     for i, res in enumerate(results):
                         s = scores_data[i]
-                        # Handle both single float and dict format
                         if isinstance(s, dict) and "score" in s:
                             res.score = float(s["score"])
                         elif isinstance(s, list) and len(s) > 0 and "score" in s[0]:
-                            # Sometimes returns list of dicts for each pair
                             res.score = float(s[0]["score"])
                         else:
                             res.score = float(s)
