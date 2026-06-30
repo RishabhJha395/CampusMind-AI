@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 class ConfigLoader:
     def __init__(self, config_dir: str = None):
         if config_dir is None:
-            # Default to the root config folder (assuming ingestion is in /ingestion)
+            # Point to backend/config/universities
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            self.config_dir = os.path.join(base_dir, "config", "universities")
+            self.config_dir = os.path.join(base_dir, "backend", "config", "universities")
         else:
             self.config_dir = config_dir
 
