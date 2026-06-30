@@ -59,7 +59,8 @@ export default function ChatPage() {
     setMessages(prev => [...prev, { role: 'assistant', content: '', sources: [] }]);
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/chat', {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +106,11 @@ export default function ChatPage() {
               } else if (data.type === 'chunk') {
                  setMessages(prev => {
                     const newMessages = [...prev];
-                    newMessages[newMessages.length - 1].content += data.content;
+                    const lastIdx = newMessages.length - 1;
+                    newMessages[lastIdx] = {
+                      ...newMessages[lastIdx],
+                      content: newMessages[lastIdx].content + data.content
+                    };
                     return newMessages;
                  });
               }

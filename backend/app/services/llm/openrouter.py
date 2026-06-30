@@ -11,7 +11,7 @@ class OpenRouterService(BaseLLMService):
     def __init__(
         self, 
         api_key: str = None, 
-        primary_model: str = "deepseek/deepseek-r1:free",
+        primary_model: str = "google/gemini-2.5-flash",
         fallback_model: str = "google/gemini-2.5-flash",
         max_tokens: int = 1024,
         temperature: float = 0.3
@@ -30,12 +30,13 @@ class OpenRouterService(BaseLLMService):
         persona = bot_persona or f"You are the official AI assistant for {university_name}."
         
         prompt = f"""{persona}
-Your goal is to provide accurate, helpful, and polite answers to user queries based STRICTLY on the provided context.
+You are an AI assistant that answers questions STRICTLY AND ONLY using the information provided in the CONTEXT below.
 
-RULES:
-1. Do not invent or hallucinate information. If the answer is not in the context, say "I don't have enough information about that right now."
-2. Be concise but comprehensive.
-3. Use professional and welcoming language.
+CRITICAL RULES:
+1. ABSOLUTELY NO HALLUCINATION. You must never invent, guess, or pull information from your pre-trained knowledge.
+2. If the user's question cannot be explicitly answered by reading the CONTEXT, you must reply exactly with: "I don't have enough information about that right now."
+3. If the context contains conflicting information (e.g., two different people listed as HOD), mention both and state where they were found.
+4. Be concise, polite, and professional.
 
 CONTEXT:
 {context_str}
