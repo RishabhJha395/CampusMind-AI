@@ -54,6 +54,7 @@ jobs:
         QDRANT_URL: ${{ secrets.QDRANT_URL }}
         QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
         PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/backend"
+        USE_LOCAL_MODELS: "true"
       run: |
         if [ "${{ github.event.schedule }}" == "0 0 * * 0" ]; then
           echo "Running FULL tier..."
@@ -70,6 +71,7 @@ jobs:
         QDRANT_URL: ${{ secrets.QDRANT_URL }}
         QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
         PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/backend"
+        USE_LOCAL_MODELS: "true"
       run: |
         echo "Running ${{ inputs.tier }} tier..."
         python -m ingestion.main --university dtu --tier ${{ inputs.tier }}
