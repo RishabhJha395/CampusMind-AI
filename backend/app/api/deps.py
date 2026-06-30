@@ -16,7 +16,7 @@ def get_vector_store() -> QdrantStore:
 
 @lru_cache()
 def get_embedder() -> LocalEmbedder:
-    model_name = os.getenv("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+    model_name = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
     batch_size = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
     return LocalEmbedder(model_name=model_name, batch_size=batch_size)
 
