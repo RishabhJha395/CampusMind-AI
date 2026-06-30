@@ -1,0 +1,81 @@
+name: Incremental Indexing Pipeline
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Every 6 hours (Fast Tier)
+    - cron: '0 0 * * 0'   # Every Sunday at Midnight (Full Tier)
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: 'Tier to run'
+        required: true
+        default: 'fast'
+        type: choice
+        options:
+          - fast
+          - full
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+        
+    - name: Install system dependencies (Tesseract OCR)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-hin libtesseract-dev
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install -r ingestion/requirements.txt
+        
+    - name: Restore HashStore Cache
+      uses: actions/cache@v4
+      with:
+        path: hash_store.json
+        key: hash-store-${{ github.ref }}
+        
+    - name: Run Incremental Indexing Pipeline (Scheduled)
+      if: github.event_name == 'schedule'
+      env:
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        QDRANT_URL: ${{ secrets.QDRANT_URL }}
+        QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+        PYTHONPATH: .
+      run: |
+        if [ "${{ github.event.schedule }}" == "0 0 * * 0" ]; then
+          echo "Running FULL tier..."
+          python -m ingestion.main --university dtu --tier full
+        else
+          echo "Running FAST tier..."
+          python -m ingestion.main --university dtu --tier fast
+        fi
+        
+    - name: Run Incremental Indexing Pipeline (Manual)
+      if: github.event_name == 'workflow_dispatch'
+      env:
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        QDRANT_URL: ${{ secrets.QDRANT_URL }}
+        QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+        PYTHONPATH: .
+      run: |
+        echo "Running ${{ inputs.tier }} tier..."
+        python -m ingestion.main --university dtu --tier ${{ inputs.tier }}
+        
+    - name: Save HashStore Cache
+      uses: actions/cache/save@v4
+      if: always()
+      with:
+        path: hash_store.json
+        key: hash-store-${{ github.ref }}-${{ github.run_id }}

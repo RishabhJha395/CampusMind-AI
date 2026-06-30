@@ -1,0 +1,61 @@
+university_id: "dtu"
+university_name: "Delhi Technological University"
+short_name: "DTU"
+website_url: "https://dtu.ac.in"
+
+crawler:
+  start_urls:
+    - "https://dtu.ac.in/"
+  allowed_domains:
+    - "dtu.ac.in"
+  max_depth: 5
+  max_pages: 2000
+  respect_robots_txt: true
+  crawl_delay_seconds: 1.0
+  ignore_patterns:
+    - "*.css"
+    - "*.js"
+    - "*.png"
+    - "*.jpg"
+    - "*.gif"
+    - "*.svg"
+    - "*.ico"
+
+pdf:
+  auto_discover: true
+  max_file_size_mb: 50
+  ocr_languages: ["eng", "hin"]
+
+vector_store:
+  collection_name: "dtu_vectors"
+  vector_size: 384
+  distance_metric: "Cosine"
+
+branding:
+  primary_color: "#1E40AF"
+  secondary_color: "#3B82F6"
+  logo_url: "/assets/universities/dtu-logo.png"
+  welcome_message: "Ask anything about DTU — admissions, departments, placements, notices, and more."
+  theme: "blue"
+
+connectors:
+  - type: "website"
+    enabled: true
+  - type: "pdf"
+    enabled: true
+
+metadata:
+  categories:
+    - "admissions"
+    - "academics"
+    - "departments"
+    - "placements"
+    - "notices"
+    - "examinations"
+    - "hostels"
+    - "fees"
+    - "research"
+    - "faculty"
+  supported_languages:
+    - "en"
+    - "hi"

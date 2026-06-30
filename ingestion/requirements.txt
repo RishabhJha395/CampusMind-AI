@@ -1,0 +1,11 @@
+crawl4ai>=0.4.0
+pymupdf>=1.24.0
+pdfplumber>=0.11.0
+Pillow>=10.4.0
+sentence-transformers>=3.0.0
+qdrant-client>=1.10.0
+pydantic>=2.9.0
+pyyaml>=6.0.2
+httpx>=0.28.0
+beautifulsoup4>=4.12.0
+pytesseract>=0.3.13
