@@ -1,11 +1,10 @@
 import logging
-import httpx
-from bs4 import BeautifulSoup
 from typing import AsyncGenerator
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 import uuid
 
+from crawl4ai import AsyncWebCrawler
 from ingestion.connectors.base import BaseConnector
 from ingestion.models.schemas import Document, DocumentMetadata
 
@@ -30,64 +29,32 @@ class WebCrawler(BaseConnector):
 
     def _is_valid_url(self, url: str, base_domain: str) -> bool:
         """Check if URL should be crawled."""
-        parsed = urlparse(url)
-        if not parsed.netloc.endswith(base_domain):
-            return False
-        
-        # Check exclusions
-        for exclude in self.exclude_paths:
-            if exclude in parsed.path:
+        try:
+            parsed = urlparse(url)
+            if not parsed.netloc.endswith(base_domain):
+                return False
+            
+            # Check exclusions
+            for exclude in self.exclude_paths:
+                if exclude in parsed.path:
+                    return False
+                    
+            # Discover PDFs but do not crawl them as HTML
+            if parsed.path.lower().endswith('.pdf'):
+                self.discovered_pdfs.add(url)
                 return False
                 
-        # Discover PDFs but do not crawl them as HTML
-        if parsed.path.lower().endswith('.pdf'):
-            self.discovered_pdfs.add(url)
+            # Ignore other files
+            if any(parsed.path.lower().endswith(ext) for ext in ['.jpg', '.png', '.zip', '.exe', '.doc', '.docx']):
+                return False
+                
+            return True
+        except Exception:
             return False
-            
-        # Ignore other files
-        if any(parsed.path.lower().endswith(ext) for ext in ['.jpg', '.png', '.zip', '.exe', '.doc', '.docx']):
-            return False
-            
-        return True
-
-    def _clean_html(self, html: str) -> tuple[str, str]:
-        """Removes nav, footer, scripts, and extracts clean text and title."""
-        soup = BeautifulSoup(html, "html.parser")
-        
-        # Extract title
-        title = "Untitled"
-        if soup.title and soup.title.string:
-            title = soup.title.string.strip()
-            
-        # Remove unwanted tags
-        for tag in soup(["nav", "footer", "script", "style", "header", "aside", "noscript"]):
-            tag.decompose()
-            
-        # Get text and clean it
-        text = soup.get_text(separator="\n")
-        # Clean up whitespace
-        lines = (line.strip() for line in text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        text = "\n".join(chunk for chunk in chunks if chunk)
-        
-        return text, title
-
-    def _extract_links(self, html: str, base_url: str) -> list[str]:
-        soup = BeautifulSoup(html, "html.parser")
-        links = []
-        for a_tag in soup.find_all("a", href=True):
-            href = a_tag["href"]
-            full_url = urljoin(base_url, href)
-            
-            # Remove fragment/anchor
-            full_url = full_url.split('#')[0]
-            if full_url:
-                links.append(full_url)
-        return links
 
     async def extract(self) -> AsyncGenerator[Document, None]:
-        """Crawl the website using BFS."""
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        """Crawl the website using BFS with Crawl4AI."""
+        async with AsyncWebCrawler(verbose=True) as crawler:
             queue = [(url, 0) for url in self.start_urls]
             pages_crawled = 0
             
@@ -110,20 +77,22 @@ class WebCrawler(BaseConnector):
                 self.visited.add(url)
                 
                 try:
-                    response = await client.get(url)
-                    response.raise_for_status()
+                    logger.info(f"Crawling {url}...")
+                    result = await crawler.arun(url=url)
                     
-                    # Ensure it's HTML
-                    content_type = response.headers.get("Content-Type", "")
-                    if "text/html" not in content_type:
+                    if not result.success:
+                        logger.warning(f"Failed to crawl {url}: {result.error_message}")
                         continue
                         
-                    html_content = response.text
-                    clean_text, title = self._clean_html(html_content)
-                    
-                    if not clean_text:
+                    clean_text = result.markdown
+                    # Sometimes markdown is empty if the page is just an image or error
+                    if not clean_text or len(clean_text.strip()) < 10:
                         continue
                         
+                    # Extract title (Crawl4AI usually puts # Title at the top)
+                    first_line = clean_text.split('\n')[0].replace('#', '').strip()
+                    title = first_line if len(first_line) > 3 else "Untitled"
+                    
                     # Create document
                     metadata = DocumentMetadata(
                         university_id=self.university_id,
@@ -144,12 +113,16 @@ class WebCrawler(BaseConnector):
                     pages_crawled += 1
                     
                     # Add new links to queue
-                    if depth < self.max_depth:
-                        new_links = self._extract_links(html_content, url)
-                        for link in new_links:
-                            if link not in self.visited:
-                                queue.append((link, depth + 1))
+                    if depth < self.max_depth and hasattr(result, 'links') and isinstance(result.links, dict):
+                        internal_links = result.links.get("internal", [])
+                        for link_obj in internal_links:
+                            link = link_obj.get("href")
+                            if link and link not in self.visited:
+                                # Remove fragment/anchor
+                                clean_link = link.split('#')[0]
+                                if clean_link and clean_link not in self.visited:
+                                    queue.append((clean_link, depth + 1))
                                 
                 except Exception as e:
-                    logger.warning(f"Failed to crawl {url}: {e}")
+                    logger.warning(f"Unexpected error crawling {url}: {e}")
                     continue
