@@ -130,6 +130,11 @@ async def run_pipeline(university_id: str, tier: str):
         
         docs_processed += 1
         chunks_processed += len(chunks)
+        
+        # 6.5 Periodic Save
+        if docs_processed % 50 == 0:
+            logger.info(f"Checkpoint: Saving HashStore at {docs_processed} documents...")
+            hash_store.save()
 
     # Crawl Web Pages
     async for document in crawler.extract():

@@ -9,7 +9,7 @@ crawler:
   allowed_domains:
     - "dtu.ac.in"
   max_depth: 5
-  max_pages: 2000
+  max_pages: 1000
   respect_robots_txt: true
   crawl_delay_seconds: 1.0
   ignore_patterns:
