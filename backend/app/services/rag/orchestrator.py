@@ -55,7 +55,7 @@ class RAGService:
             
         return fused_results
 
-    async def retrieve_context(self, university_id: str, query: str, top_k: int = 5, retrieve_k: int = 20) -> tuple[List[str], List[Dict[str, Any]]]:
+    async def retrieve_context(self, university_id: str, query: str, top_k: int = 20, retrieve_k: int = 40) -> tuple[List[str], List[Dict[str, Any]]]:
         """
         Retrieves relevant context using Query Expansion -> Hybrid Search -> RRF -> Cross-Encoder Reranking.
         """
