@@ -115,7 +115,7 @@ class RAGService:
                 context_texts.append(content)
                 
             source_info = {
-                "url": payload.get("url", ""),
+                "url": payload.get("source_url", ""),
                 "title": payload.get("title", "Untitled Document"),
                 "score": res.score
             }
