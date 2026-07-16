@@ -145,36 +145,33 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden relative">
+    <div className="flex flex-col h-screen bg-[#F7FAFF] overflow-hidden relative font-['Inter']">
       
-      {/* Dynamic Background Elements */}
-      <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
-
       {/* Header */}
-      <header className="flex-none bg-white/70 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 z-10 px-6 py-4 shadow-sm">
+      <header className="flex-none bg-[rgba(255,255,255,0.75)] backdrop-blur-[20px] border-b border-[#E5EDF9] z-10 px-6 py-4 shadow-[0_4px_15px_rgba(15,23,42,0.02)]">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => navigate('/')}
-              className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-500"
+              className="p-2 -ml-2 rounded-full hover:bg-[#EAF2FF] transition-colors text-[#3B82F6]"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="flex items-center space-x-3">
               {university.logo_url ? (
-                <img src={university.logo_url} alt="logo" className="w-10 h-10 object-contain rounded-lg bg-white p-1 shadow-sm" />
+                <img src={university.logo_url} alt="logo" className="w-10 h-10 object-contain rounded-lg bg-white p-1 shadow-[0_4px_15px_rgba(15,23,42,0.05)] border border-[#E5EDF9]" />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-primary" />
+                <div className="w-10 h-10 rounded-lg bg-[#EAF2FF] flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-[#3B82F6]" />
                 </div>
               )}
               <div>
-                <h2 className="font-bold text-slate-900 dark:text-white text-lg tracking-tight leading-none mb-1">
+                <h2 className="font-[700] text-[#0F172A] text-lg tracking-tight leading-none mb-1">
                   {university.university_name} AI
                 </h2>
                 <div className="flex items-center space-x-2">
-                  <span className="flex w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                  <p className="text-xs text-slate-500 font-medium">Online</p>
+                  <span className="flex w-2 h-2 rounded-full bg-[#22C55E] animate-pulse"></span>
+                  <p className="text-xs text-[#22C55E] font-[500]">Online</p>
                 </div>
               </div>
             </div>
@@ -195,23 +192,23 @@ export default function ChatPage() {
             >
               <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
                 msg.role === 'user' 
-                  ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white' 
-                  : 'bg-white border border-slate-200 dark:bg-slate-800 dark:border-slate-700 text-primary'
+                  ? 'bg-[#3B82F6] text-white' 
+                  : 'bg-white border border-[#E2E8F0] text-[#3B82F6]'
               }`}>
                 {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
               
               <div className="flex flex-col max-w-[85%] sm:max-w-[75%] space-y-2">
-                <div className={`px-5 py-4 rounded-2xl shadow-sm ${
+                <div className={`px-5 py-4 rounded-2xl ${
                   msg.role === 'user'
-                    ? 'bg-primary text-white rounded-br-sm'
+                    ? 'bg-[linear-gradient(135deg,#3B82F6,#60A5FA)] text-white shadow-[0_10px_25px_rgba(59,130,246,0.25)] rounded-br-sm'
                     : msg.isError 
-                      ? 'bg-red-50 text-red-700 rounded-bl-sm border border-red-100' 
-                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-sm border border-slate-100 dark:border-slate-700'
+                      ? 'bg-red-50 text-red-700 rounded-bl-sm border border-red-100 shadow-[0_8px_20px_rgba(0,0,0,0.05)]' 
+                      : 'bg-[#FFFFFF] text-[#334155] rounded-bl-sm border border-[#E2E8F0] shadow-[0_8px_20px_rgba(0,0,0,0.05)]'
                 }`}>
-                  <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'text-white prose-invert' : 'dark:prose-invert'}`}>
+                  <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'text-white prose-invert' : 'text-[#334155]'}`}>
                     {msg.role === 'user' ? (
-                      <p className="whitespace-pre-wrap m-0 leading-relaxed">{msg.content}</p>
+                      <p className="whitespace-pre-wrap m-0 leading-relaxed font-[400]">{msg.content}</p>
                     ) : (
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {msg.content}
@@ -229,7 +226,7 @@ export default function ChatPage() {
                         href={source.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-500 hover:text-primary hover:border-primary/50 transition-colors shadow-sm cursor-pointer"
+                        className="inline-flex items-center space-x-1 px-4 py-1.5 bg-[#F8FBFF] border border-[#D8E6FF] rounded-full text-xs font-[500] text-[#4A6FA5] hover:bg-[#EAF3FF] hover:border-[#BFD7FF] transition-colors duration-200 ease-out cursor-pointer shadow-[0_2px_4px_rgba(0,0,0,0.02)]"
                         title={source.title}
                       >
                         <ExternalLink className="w-3 h-3" />
@@ -250,13 +247,13 @@ export default function ChatPage() {
               animate={{ opacity: 1, y: 0 }}
               className="flex items-end space-x-3"
             >
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white border border-slate-200 dark:bg-slate-800 dark:border-slate-700 flex items-center justify-center shadow-sm">
-                <Bot className="w-4 h-4 text-primary" />
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white border border-[#E2E8F0] flex items-center justify-center shadow-sm">
+                <Bot className="w-4 h-4 text-[#3B82F6]" />
               </div>
-              <div className="bg-white dark:bg-slate-800 px-5 py-4 rounded-2xl rounded-bl-sm border border-slate-100 dark:border-slate-700 shadow-sm flex space-x-2">
-                <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="bg-[#FFFFFF] text-[#334155] px-5 py-4 rounded-2xl rounded-bl-sm border border-[#E2E8F0] shadow-[0_8px_20px_rgba(0,0,0,0.05)] flex space-x-2 items-center">
+                <div className="w-2 h-2 rounded-full bg-[#3B82F6]/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 rounded-full bg-[#3B82F6]/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full bg-[#3B82F6]/80 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </motion.div>
           )}
@@ -265,11 +262,11 @@ export default function ChatPage() {
       </main>
 
       {/* Input Area */}
-      <footer className="flex-none bg-white/70 dark:bg-slate-800/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 p-4">
+      <footer className="flex-none bg-[rgba(255,255,255,0.75)] backdrop-blur-[20px] border-t border-[#E5EDF9] p-4">
         <div className="max-w-4xl mx-auto">
           <form 
             onSubmit={handleSubmit}
-            className="relative flex items-center bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all duration-300"
+            className="relative flex items-center bg-[rgba(255,255,255,0.90)] rounded-[18px] border border-[#DCE7F7] focus-within:border-[#3B82F6] shadow-[0_5px_15px_rgba(0,0,0,0.04)] focus-within:shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-all duration-300"
           >
             <input
               type="text"
@@ -277,19 +274,19 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Ask about ${university.university_name}...`}
               disabled={isLoading}
-              className="w-full bg-transparent px-6 py-4 outline-none text-slate-800 dark:text-white placeholder-slate-400"
+              className="w-full bg-transparent px-6 py-4 outline-none text-[#0F172A] placeholder-[#94A3B8] font-[400]"
             />
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="absolute right-2 p-2.5 rounded-xl bg-primary text-white hover:bg-primary/90 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 transition-colors shadow-sm"
+              className="absolute right-2 p-2.5 rounded-xl bg-[#3B82F6] text-white hover:bg-[#2563EB] disabled:bg-[#E5EDF9] disabled:text-[#94A3B8] transition-colors duration-250 ease-out shadow-[0_4px_15px_rgba(59,130,246,0.2)] disabled:shadow-none hover:scale-[1.02] disabled:scale-100"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </button>
           </form>
           <div className="text-center mt-3">
-            <p className="text-[11px] text-slate-400 font-medium">
-              CampusMind AI can make mistakes. Consider verifying important information from official sources.
+            <p className="text-[11px] text-[#94A3B8] font-[500]">
+              <span className="font-[600] text-[#3B82F6]">CampusMind AI</span> can make mistakes. Consider verifying important information from official sources.
             </p>
           </div>
         </div>

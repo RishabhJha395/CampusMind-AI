@@ -25,12 +25,12 @@ export default function UniversitySelectionPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex flex-col items-center py-20 px-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF5FF_50%,#F7FAFF_100%)] flex flex-col items-center py-20 px-4 relative overflow-hidden font-['Inter']">
       
       {/* Abstract Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-primary/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
-      <div className="absolute top-[20%] right-[-10%] w-96 h-96 bg-purple-300/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
-      <div className="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-pink-300/20 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-[#EAF2FF] rounded-full mix-blend-multiply filter blur-[120px] opacity-40 animate-blob"></div>
+      <div className="absolute top-[20%] right-[-10%] w-[500px] h-[500px] bg-[#EAF2FF] rounded-full mix-blend-multiply filter blur-[100px] opacity-30 animate-blob animation-delay-2000"></div>
+      <div className="absolute bottom-[-20%] left-[20%] w-[700px] h-[700px] bg-[#EAF2FF] rounded-full mix-blend-multiply filter blur-[150px] opacity-40 animate-blob animation-delay-4000"></div>
 
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -38,13 +38,14 @@ export default function UniversitySelectionPage() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="text-center z-10 max-w-2xl mx-auto mb-16"
       >
-        <div className="inline-flex items-center justify-center p-3 bg-white/50 dark:bg-white/10 rounded-2xl shadow-sm backdrop-blur-md mb-6 border border-white/20">
-          <BookOpen className="w-8 h-8 text-primary" />
+        <div className="inline-flex items-center justify-center p-3 bg-[rgba(255,255,255,0.75)] rounded-2xl shadow-[0_5px_15px_rgba(0,0,0,0.04)] backdrop-blur-[20px] mb-6 border border-[rgba(70,120,255,0.08)]">
+          <BookOpen className="w-8 h-8 text-[#3B82F6]" />
         </div>
-        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6">
-          Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">CampusMind AI</span>
+        <h1 className="text-5xl md:text-6xl font-[700] tracking-tight text-[#0F172A] mb-6">
+          Welcome to <br className="hidden md:block" />
+          <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#3B82F6,#06B6D4)]">CampusMind AI</span>
         </h1>
-        <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed">
+        <p className="text-lg md:text-xl text-[#475569] leading-relaxed">
           Your intelligent campus assistant. Select your university below to access instantly searchable, verified institutional knowledge.
         </p>
       </motion.div>
@@ -67,54 +68,47 @@ export default function UniversitySelectionPage() {
                 key={uni.university_id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.25, ease: "easeOut", delay: index * 0.1 }}
+                whileHover={{ y: -4 }}
                 onClick={() => navigate(`/chat/${uni.university_id}`)}
                 className="group relative cursor-pointer"
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-purple-600/5 rounded-3xl transform transition-transform duration-300 group-hover:scale-105" />
-                
-                <div className="relative h-full bg-white/70 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <div className="relative h-full bg-[rgba(255,255,255,0.75)] backdrop-blur-[20px] border border-[rgba(70,120,255,0.08)] p-8 rounded-[24px] shadow-[0_15px_40px_rgba(30,80,180,0.08)] transition-all duration-250 ease-out overflow-hidden">
                   
                   {/* Decorative corner accent using university primary color */}
                   <div 
-                    className="absolute -top-12 -right-12 w-24 h-24 rounded-full opacity-20 blur-xl transition-all duration-500 group-hover:scale-150 group-hover:opacity-40"
-                    style={{ backgroundColor: uni.primary_color || '#3b82f6' }}
+                    className="absolute -top-12 -right-12 w-24 h-24 rounded-full opacity-10 blur-xl transition-all duration-500 group-hover:scale-150 group-hover:opacity-20"
+                    style={{ backgroundColor: uni.primary_color || '#3B82F6' }}
                   />
 
                   <div className="flex items-start justify-between mb-8">
                     <div 
-                      className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden"
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center border border-[rgba(70,120,255,0.08)] bg-white overflow-hidden shadow-[0_4px_15px_rgba(15,23,42,0.05)]"
                     >
                       {uni.logo_url ? (
                         <img src={uni.logo_url} alt={uni.university_name} className="w-10 h-10 object-contain" />
                       ) : (
-                        <GraduationCap className="w-8 h-8 text-slate-400" />
+                        <GraduationCap className="w-8 h-8 text-[#94A3B8]" />
                       )}
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors duration-300 shadow-sm border border-slate-100 dark:border-slate-700">
-                      <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center transition-all duration-250 ease-out shadow-[0_4px_15px_rgba(15,23,42,0.05)] border border-[#E5EDF9] group-hover:border-[#3B82F6]">
+                      <ArrowRight className="w-5 h-5 text-[#94A3B8] group-hover:text-[#3B82F6] transition-all duration-250 ease-out group-hover:translate-x-1" />
                     </div>
                   </div>
 
-                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-3 tracking-tight">
+                  <h3 className="text-2xl font-[600] text-[#0F172A] mb-3 tracking-tight">
                     {uni.university_name}
                   </h3>
                   
                   {uni.welcome_message && (
-                    <p className="text-slate-500 dark:text-slate-400 text-sm line-clamp-3 leading-relaxed">
+                    <p className="text-[#64748B] text-sm line-clamp-3 leading-relaxed font-[400]">
                       {uni.welcome_message}
                     </p>
                   )}
                   
                   <div className="mt-8 flex items-center space-x-2">
                     <span 
-                      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
-                      style={{ 
-                        backgroundColor: `${uni.primary_color || '#3b82f6'}15`,
-                        color: uni.primary_color || '#3b82f6'
-                      }}
+                      className="inline-flex items-center px-4 py-2 rounded-full text-sm font-[500] bg-[#3B82F6] text-white transition-all duration-250 ease-out group-hover:bg-[#2563EB] shadow-[0_8px_20px_rgba(59,130,246,0.25)] group-hover:scale-[1.02]"
                     >
                       Enter Campus
                     </span>

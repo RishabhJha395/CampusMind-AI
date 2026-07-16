@@ -1,0 +1,934 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; color: #333; }
+        h1, h2, h3, h4 { color: #111; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        code { font-family: monospace; background: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .mermaid { display: flex; justify-content: center; margin: 20px 0; }
+        blockquote { border-left: 4px solid #ccc; margin: 0; padding-left: 16px; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>CampusMind AI — Comprehensive Technical Study Guide</h1>
+<h3>For Software Engineering Interviews</h3>
+<blockquote>
+<p><strong>Document Purpose:</strong> This guide is an exhaustive, interview-ready reference for the CampusMind AI project. Every architectural detail, code snippet, and design decision documented here is derived directly from the actual project source code.</p>
+</blockquote>
+<hr />
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-project-overview--problem-statement">Project Overview &amp; Problem Statement</a></li>
+<li><a href="#2-high-level-system-architecture">High-Level System Architecture</a></li>
+<li><a href="#3-architecture-diagrams-mermaidjs">Architecture Diagrams (Mermaid.js)</a></li>
+<li><a href="#4-core-component-deep-dives">Core Component Deep Dives</a></li>
+<li><a href="#5-scalability--system-limitations">Scalability &amp; System Limitations</a></li>
+<li><a href="#6-top-10-technical-interview-questions--answers">Top 10 Technical Interview Q&amp;A</a></li>
+</ol>
+<hr />
+<h2>1. Project Overview &amp; Problem Statement</h2>
+<h3>1.1 The Problem</h3>
+<p>University students face a fragmented information landscape. Critical data — examination schedules, academic ordinances, fee structures, hostel notices, departmental circulars, faculty contacts, scholarship deadlines — is scattered across dozens of sub-pages, PDFs, and notice boards of poorly-maintained institutional websites. These sites are notoriously:</p>
+<ul>
+<li><strong>Slow and unreliable:</strong> Static HTML pages often rendered by outdated CMSes.</li>
+<li><strong>Non-searchable:</strong> Google cannot index dynamically-rendered JavaScript pages. Internal site searches are rudimentary keyword matchers.</li>
+<li><strong>Inconsistent:</strong> Older announcements contradict newer ones. PDF ordinances from 2021 and 2025 may coexist with conflicting rules.</li>
+<li><strong>Inaccessible to natural language:</strong> A student cannot ask "What is the minimum attendance for a backlog student?" and receive a precise, cited answer.</li>
+</ul>
+<p>The manual cost of navigating these systems is high: students lose hours weekly searching for authoritative answers, often settling for unreliable peer advice.</p>
+<h3>1.2 The Solution: CampusMind AI</h3>
+<p><strong>CampusMind AI</strong> is a <strong>multi-tenant, university-specific Retrieval-Augmented Generation (RAG) knowledge platform</strong>. It transforms the unstructured, fragmented data of a university's digital presence into a conversational, citation-backed AI assistant.</p>
+<p>The system operates through three distinct lifecycle phases:</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ingestion</strong></td>
+<td>An automated pipeline crawls the university's entire web presence (JS-rendered pages + PDFs), processes and chunks the content, generates semantic embeddings, and indexes everything into a vector database.</td>
+</tr>
+<tr>
+<td><strong>Retrieval</strong></td>
+<td>When a user asks a question, the system performs a sophisticated hybrid search — combining semantic vector search with exact full-text keyword search — then merges results using Reciprocal Rank Fusion and reranks them with a Cross-Encoder model.</td>
+</tr>
+<tr>
+<td><strong>Generation</strong></td>
+<td>The top-ranked context chunks are injected into a structured prompt, and Google Gemini 2.5 Flash generates a precise, grounded answer with zero tolerance for hallucination.</td>
+</tr>
+</tbody>
+</table>
+<h3>1.3 Core Value Proposition</h3>
+<ul>
+<li><strong>Accuracy over Creativity:</strong> The LLM is instructed with <code>CRITICAL RULES</code> in the system prompt to <em>never</em> hallucinate and to explicitly refuse if context is insufficient.</li>
+<li><strong>Always Fresh:</strong> A GitHub Actions CI/CD pipeline re-crawls university notice boards every 6 hours automatically, ensuring the knowledge base stays current without any manual intervention.</li>
+<li><strong>Multi-tenant by Design:</strong> The system's <code>university_id</code> model allows a single deployed instance to serve multiple universities, each with its own isolated Qdrant collection, configuration, and branding.</li>
+<li><strong>Cost-Efficient:</strong> Using a locally-run embedding model eliminates per-token embedding API costs — crucial for a high-volume ingestion pipeline that processes thousands of chunks per run.</li>
+</ul>
+<hr />
+<h2>2. High-Level System Architecture</h2>
+<h3>2.1 The Full Stack</h3>
+<p>```
+┌─────────────────────────────────────────────────────────────────────┐
+│  FRONTEND (Vercel)                                                  │
+│  React + Vite + Tailwind CSS                                        │
+│  SSE streaming chat UI, multi-university selector                   │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │ HTTPS / SSE
+┌────────────────────────▼────────────────────────────────────────────┐
+│  BACKEND (Render)                                                   │
+│  FastAPI (Python 3.12) — Async ASGI                                 │
+│  /api/v1/chat  → RAGService Orchestrator                            │
+│  /api/v1/health, /stats, /reindex, /universities                    │
+│  Middlewares: CORS, Rate Limiting (slowapi), Request Logging        │
+└──────┬──────────────────┬───────────────────────────────────────────┘
+       │                  │
+┌──────▼──────┐    ┌──────▼──────────────────────────────────────────┐
+│  OpenRouter │    │  Qdrant Cloud                                   │
+│  (LLM API   │    │  Dense Vectors (384-dim, Cosine)                │
+│  Gateway)   │    │  Full-Text Index (WORD tokenizer)               │
+│  Gemini 2.5 │    │  Scalar INT8 Quantization                       │
+│  Flash       │    │  Payload Indexes: university_id, category, ...  │
+└─────────────┘    └─────────────────────────────────────────────────┘</p>
+<p>┌─────────────────────────────────────────────────────────────────────┐
+│  INGESTION PIPELINE (GitHub Actions Runner — ubuntu-latest)         │
+│  Crawl4AI + Playwright → HashStore → TextChunker →                 │
+│  LocalEmbedder (paraphrase-multilingual-MiniLM-L12-v2) → Qdrant   │
+│  + Tesseract OCR for PDFs                                          │
+│  Scheduled: cron 0 */6 * * * (fast tier) | 0 0 * * 0 (full tier)  │
+└─────────────────────────────────────────────────────────────────────┘
+```</p>
+<h3>2.2 Technology Decisions — The "Why"</h3>
+<p>Every technology choice in this stack is deliberate. Here is the justification for each, with an explicit comparison to the alternatives:</p>
+<hr />
+<h4>FastAPI over Django / Flask</h4>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>FastAPI</th>
+<th>Django</th>
+<th>Flask</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Performance</strong></td>
+<td>Native <code>async</code>/<code>await</code> with ASGI (Uvicorn)</td>
+<td>Synchronous WSGI by default (async via ASGI add-ons)</td>
+<td>Synchronous WSGI</td>
+</tr>
+<tr>
+<td><strong>I/O Suitability</strong></td>
+<td>Excellent — LLM API calls and Qdrant queries are I/O-bound; <code>async</code> means the server can handle many concurrent requests without blocking</td>
+<td>Poor — each blocking I/O call ties up a thread</td>
+<td>Poor</td>
+</tr>
+<tr>
+<td><strong>SSE Streaming</strong></td>
+<td>First-class <code>StreamingResponse</code> support</td>
+<td>Complex workarounds</td>
+<td>Complex workarounds</td>
+</tr>
+<tr>
+<td><strong>Validation</strong></td>
+<td>Built-in Pydantic v2 models for request/response</td>
+<td>Separate Django REST Framework serializers</td>
+<td>Manual</td>
+</tr>
+<tr>
+<td><strong>Overhead</strong></td>
+<td>Minimal</td>
+<td>Very heavy (ORM, admin, auth built-in but unused)</td>
+<td>Moderate</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The actual implementation:</strong> The <code>/api/v1/chat</code> endpoint uses <code>StreamingResponse</code> for SSE (Server-Sent Events), yielding chunks directly from the <code>async for chunk in llm_service.generate_response_stream(...)</code> generator. This only works cleanly with an ASGI framework like FastAPI.</p>
+<p>The <code>httpx.AsyncClient</code> in <code>OpenRouterService</code> makes non-blocking HTTP calls to OpenRouter, meaning a slow LLM response does not block other users' requests. With Flask/Django, this would require threading or Celery.</p>
+<hr />
+<h4>Qdrant over Pinecone / Weaviate / ChromaDB</h4>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>Qdrant</th>
+<th>Pinecone</th>
+<th>ChromaDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Hybrid Search</strong></td>
+<td>Native: vector search + full-text <code>MatchText</code> scroll, both first-class features</td>
+<td>Vector only (keyword search requires external plugin)</td>
+<td>Vector only</td>
+</tr>
+<tr>
+<td><strong>Filtering</strong></td>
+<td>Rich payload filters on any metadata field with indexed lookups</td>
+<td>Metadata filtering supported</td>
+<td>Limited</td>
+</tr>
+<tr>
+<td><strong>Cost Model</strong></td>
+<td>Free cloud tier; self-hostable open-source</td>
+<td>Expensive managed-only service</td>
+<td>Local only (no managed cloud at scale)</td>
+</tr>
+<tr>
+<td><strong>Quantization</strong></td>
+<td>INT8 Scalar Quantization built-in (4× memory reduction)</td>
+<td>Not user-configurable</td>
+<td>None</td>
+</tr>
+<tr>
+<td><strong>Multi-tenancy</strong></td>
+<td>Per-collection isolation with <code>university_id</code> payload filter</td>
+<td>Per-index namespace</td>
+<td>Per-collection</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The actual implementation:</strong> The <code>QdrantStore.create_collection()</code> method sets up:
+1. A <code>VectorParams</code> config with <code>size=384</code> (matching the MiniLM embedding dimension) and <code>distance=COSINE</code>.
+2. <code>ScalarQuantization(type=INT8, quantile=0.99, always_ram=True)</code> — this keeps quantized vectors in RAM for fast access while reducing storage by ~75%.
+3. A <code>TextIndexParams</code> full-text index on the <code>content</code> field with <code>WORD</code> tokenizer — this enables the exact keyword search arm of the hybrid retrieval.
+4. KEYWORD payload indexes on <code>university_id</code>, <code>category</code>, <code>doc_type</code>, and <code>content_hash</code> for fast filtered lookups.</p>
+<hr />
+<h4>Local Embeddings (<code>paraphrase-multilingual-MiniLM-L12-v2</code>) over OpenAI <code>text-embedding-ada-002</code></h4>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>Local MiniLM</th>
+<th>OpenAI Ada-002</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Cost</strong></td>
+<td><strong>$0</strong> per embedding</td>
+<td>~$0.0001/1K tokens — costs add up over thousands of documents re-indexed every 6 hours</td>
+</tr>
+<tr>
+<td><strong>Latency</strong></td>
+<td>CPU inference on the GitHub Actions runner, batched</td>
+<td>Network round-trip to OpenAI API</td>
+</tr>
+<tr>
+<td><strong>Privacy</strong></td>
+<td>Text never leaves the runner</td>
+<td>Text sent to third-party API</td>
+</tr>
+<tr>
+<td><strong>Multilingual</strong></td>
+<td>Yes — <code>paraphrase-multilingual</code> trained on 50+ languages. Critical for a Delhi university where content mixes English and Hindi</td>
+<td>English-primary</td>
+</tr>
+<tr>
+<td><strong>Dimension</strong></td>
+<td>384 — small, fast, memory efficient</td>
+<td>1536 — larger memory footprint in Qdrant</td>
+</tr>
+<tr>
+<td><strong>Consistency</strong></td>
+<td>Model version pinned locally; embeddings always match</td>
+<td>OpenAI can deprecate/change model behavior</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The actual implementation:</strong> The <code>LocalEmbedder</code> in <code>backend/app/services/embedding/</code> wraps <code>sentence_transformers.SentenceTransformer</code>. During ingestion in <code>main.py</code>, it is instantiated as:
+<code>python
+embedder = LocalEmbedder(
+    model_name=os.getenv("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+)</code>
+The same embedder instance is used during query time via <code>get_embedder()</code> in <code>deps.py</code>, which uses <code>@lru_cache()</code> to ensure the model is loaded into memory only once per process.</p>
+<hr />
+<h4>OpenRouter (Gateway) over Direct Gemini API</h4>
+<p>OpenRouter acts as a <strong>unified LLM routing gateway</strong>. The key architectural advantage is <strong>automatic fallback</strong>:</p>
+<p>```python</p>
+<h1>From openrouter.py</h1>
+<p>if target_model == self.primary_model and self.fallback_model:
+    logger.info(f"Falling back to model {self.fallback_model}")
+    return await self._make_api_call(messages, stream=stream, model=self.fallback_model)
+```</p>
+<p>If Gemini 2.5 Flash returns a 4xx/5xx, the system transparently retries with the configured fallback model without any user-visible error. This provides resilience at the LLM layer without complex custom retry logic.</p>
+<p>OpenRouter also provides a single billing endpoint, request logging, and the ability to switch models (e.g., to Claude or GPT-4o) by changing a single environment variable (<code>LLM_MODEL</code>) without touching code.</p>
+<hr />
+<h4>Crawl4AI + Playwright over <code>requests</code> + BeautifulSoup</h4>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>Crawl4AI + Playwright</th>
+<th>requests + BeautifulSoup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>JS Rendering</strong></td>
+<td>Full Chromium browser via Playwright. Executes JavaScript, waits for AJAX, handles SPAs</td>
+<td>HTTP-only. Receives raw HTML before JS executes. Misses all dynamically injected content</td>
+</tr>
+<tr>
+<td><strong>Output Format</strong></td>
+<td>Returns clean <code>.markdown</code> — structured, noise-free text, no HTML parsing needed</td>
+<td>Raw HTML requiring manual parsing</td>
+</tr>
+<tr>
+<td><strong>Link Extraction</strong></td>
+<td>Returns <code>result.links</code> dict with <code>internal</code>/<code>external</code> separation</td>
+<td>Must implement BFS graph traversal manually</td>
+</tr>
+<tr>
+<td><strong>PDF Discovery</strong></td>
+<td><code>_is_valid_url()</code> detects <code>.pdf</code> extensions and adds to <code>discovered_pdfs</code> set automatically during link traversal</td>
+<td>Manual</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. Architecture Diagrams (Mermaid.js)</h2>
+<h3>Diagram 1: The Ingestion Pipeline</h3>
+<div class="mermaid">flowchart TD
+    A([GitHub Actions Scheduler\ncron: 0 */6 * * *\nOR 0 0 * * 0 full tier]) --> B[Checkout Repository\nactions/checkout@v4]
+    B --> C[Restore HashStore Cache\nactions/cache@v4\nhash_store.json]
+    C --> D[Install Dependencies\nPlaywright + Tesseract OCR\n+ Python packages]
+    D --> E{Tier?}
+    E -- fast --> F1[start_urls = notice board\nmax_depth=1, max_pages=50]
+    E -- full --> F2[All start_urls from config\nmax_depth=2, max_pages=2000]
+
+    F1 & F2 --> G
+
+    subgraph G [WebCrawler — Crawl4AI + Playwright BFS]
+        G1[Start URL Queue] --> G2{URL Visited?}
+        G2 -- No --> G3[Crawl4AI .arun url\nChromium executes JS\nReturns result.markdown]
+        G2 -- Yes --> G7[Skip]
+        G3 --> G4{PDF Extension?}
+        G4 -- Yes --> G5[Add to discovered_pdfs set]
+        G4 -- No --> G6[Yield Document\nid, content, metadata]
+        G6 --> G8[Enqueue internal links\ndepth + 1]
+        G8 --> G2
+    end
+
+    G --> H
+
+    subgraph H [PDF Pipeline — Tesseract OCR]
+        H1[Sort discovered_pdfs\n2026 > 2025 > ordinances > rest] --> H2[Slice top 1500 PDFs]
+        H2 --> H3[PDFConnector.extract\nhttpx async download\nto tmp dir]
+        H3 --> H4[PDFProcessor.process_pdf\nPyMuPDF + pytesseract\nOCR on scanned pages]
+        H4 --> H5[Yield PDF Document]
+    end
+
+    G --> I
+    H --> I
+
+    subgraph I [process_document — Incremental Indexing]
+        I1[Receive Document\nurl + content] --> I2{HashStore.has_changed?\nSHA-256 of content\nvs stored hash}
+        I2 -- No Change --> I3[skipped_docs ++\nLogger.debug Skip]
+        I2 -- Changed / New --> I4[TextChunker.chunk_document\nchunk_size=1000\noverlap=200 sliding window]
+        I4 --> I5[Delete Old Vectors for URL\nQdrant filter on source_url]
+        I5 --> I6[LocalEmbedder.embed_texts\nparaphrase-multilingual-MiniLM-L12-v2\nbatch inference → 384-dim vectors]
+        I6 --> I7[Build PointStruct list\nid UUID5 deterministic\nvector + payload]
+        I7 --> I8[QdrantStore.upsert\nto university collection]
+        I8 --> I9[HashStore.update_hash\nurl → new SHA-256]
+        I9 --> I10{docs_processed % 50 == 0?}
+        I10 -- Yes --> I11[Periodic hash_store.save\nCheckpoint to disk]
+    end
+
+    I --> J{Full Tier?}
+    J -- Yes --> K[get_deleted_urls\nstored_urls - seen_urls\nDelete orphan vectors from Qdrant\nRemove from HashStore]
+    J & K --> L[Final hash_store.save]
+    L --> M[Save HashStore Cache\nactions/cache/save@v4\nkey: hash-store-ref-run_id]
+
+    style G fill:#1a237e,color:#fff
+    style H fill:#4a148c,color:#fff
+    style I fill:#1b5e20,color:#fff</div>
+
+<hr />
+<h3>Diagram 2: The RAG Retrieval Pipeline</h3>
+<div class="mermaid">flowchart TD
+    A([User Types Query\nin React Chat UI]) --> B[POST /api/v1/chat\nChatRequest:\nuniversity_id + query + stream]
+
+    B --> C[FastAPI Middleware\nRate Limit: 30/min per IP\nRequest Logging + UUID]
+
+    C --> D[Dependency Injection\nget_rag_service\nlru_cache — single instances]
+
+    D --> E[RAGService.retrieve_context\nuniversity_id, query, top_k=20]
+
+    subgraph QUERY_EXPANSION [Step 1 — LLM Query Expansion]
+        E --> QE1[QueryExpansionService.expand_query\nSend query to Gemini via OpenRouter]
+        QE1 --> QE2[Returns 3 semantic variations\nusing different vocabulary and\nofficial terminology]
+        QE2 --> QE3[Final list: 4 queries\noriginal + 3 variations]
+    end
+
+    subgraph HYBRID_SEARCH [Step 2 — Hybrid Search per Query Variation]
+        QE3 --> HS1[For each of 4 queries:]
+        HS1 --> HS2[LocalEmbedder.embed_query\n384-dim dense vector]
+        HS2 --> HS3[QdrantStore.search\nCosine ANN — top 40 results\nfilter: university_id]
+        HS3 --> HS4[Collect dense result list]
+
+        QE3 --> HS5[Original query only:]
+        HS5 --> HS6[QdrantStore.text_search\nQdrant Scroll API\nMatchText on content field\nExact keyword filter — top 40]
+        HS6 --> HS7[Collect keyword result list\nassign score=1.0]
+    end
+
+    subgraph RRF [Step 3 — Reciprocal Rank Fusion]
+        HS4 & HS7 --> RRF1[Combine all result lists\n4 dense + 1 keyword = 5 lists]
+        RRF1 --> RRF2[For each list, for each doc at rank r:\nscore += 1 / 60 + r]
+        RRF2 --> RRF3[Accumulate scores per doc_id\nacross all lists]
+        RRF3 --> RRF4[Sort by fused_score descending]
+        RRF4 --> RRF5[Take top 40 candidates]
+    end
+
+    subgraph RERANK [Step 4 — Cross-Encoder Reranking]
+        RRF5 --> CR1[CrossEncoderReranker.rerank\nmodel: ms-marco-MiniLM-L-6-v2]
+        CR1 --> CR2{USE_LOCAL_MODELS?}
+        CR2 -- true local --> CR3[sentence_transformers CrossEncoder\n.predict pairs locally]
+        CR2 -- false API --> CR4[HuggingFace Inference API\ntext_pair classification POST]
+        CR3 & CR4 --> CR5[Score each query-doc pair\nSort descending\nReturn top 20]
+    end
+
+    subgraph GENERATION [Step 5 — LLM Generation]
+        CR5 --> GEN1[Build System Prompt\nInject 20 context chunks\nwith CRITICAL RULES:\nNo hallucination\nRefuse if not in context]
+        GEN1 --> GEN2[OpenRouterService._make_api_call\nPOST to openrouter.ai/api/v1/chat/completions\nmodel: google/gemini-2.5-flash\ntemp=0.3]
+        GEN2 --> GEN3{stream=true?}
+        GEN3 -- Yes --> GEN4[SSE Stream\nyield sources JSON first\nthen yield content chunks\nyield DONE]
+        GEN3 -- No --> GEN5[Return full JSON response\nanswer + sources array]
+        GEN2 --> GEN6{HTTP Error?}
+        GEN6 -- Yes --> GEN7[Fallback to fallback_model\ngemini-2.5-flash retry]
+    end
+
+    GEN4 & GEN5 --> Z([React UI renders answer\nwith source citations])
+
+    style QUERY_EXPANSION fill:#0d47a1,color:#fff
+    style HYBRID_SEARCH fill:#1a237e,color:#fff
+    style RRF fill:#4a148c,color:#fff
+    style RERANK fill:#880e4f,color:#fff
+    style GENERATION fill:#1b5e20,color:#fff</div>
+
+<hr />
+<h2>4. Core Component Deep Dives</h2>
+<h3>4.1 Reciprocal Rank Fusion (RRF) — The Hybrid Search Merger</h3>
+<h4>The Problem with Single-Method Retrieval</h4>
+<p>Pure <strong>cosine similarity (vector search)</strong> is excellent at finding semantically similar content — it understands that "attendance rules" and "presence requirements" are related concepts. However, it fails on <strong>exact terminology</strong> — if a student asks "What is DTU ordinance 5.3?", a vector model may return loosely related content instead of the exact clause.</p>
+<p>Pure <strong>keyword search (BFS text match)</strong> is the opposite — it is precise for exact terms but fails on paraphrasing and synonyms.</p>
+<h4>What RRF Does</h4>
+<p>RRF was introduced by Cormack et al. (2009) as a method to merge multiple ranked lists <strong>without needing scores to be comparable across systems</strong>. The formula is:</p>
+<p>$$\text{RRF_Score}(d) = \sum_{i=1}^{n} \frac{1}{k + \text{rank}_i(d)}$$</p>
+<p>Where:
+- $d$ is a document/chunk
+- $n$ is the number of ranked lists being merged (in this system: 4 dense + 1 keyword = 5 lists)
+- $\text{rank}_i(d)$ is the 0-indexed rank of document $d$ in list $i$ (0 = top result)
+- $k = 60$ is a smoothing constant that prevents rank 1 from dominating too heavily</p>
+<h4>The Actual Implementation</h4>
+<p>From <code>orchestrator.py</code> (lines 27–56):</p>
+<p>```python
+def _reciprocal_rank_fusion(self, search_results_lists: List[List[VectorResult]], k: int = 60) -&gt; List[VectorResult]:
+    fused_scores = {}
+    payload_map = {}</p>
+<pre><code>for results in search_results_lists:
+    for rank, doc in enumerate(results):
+        doc_id = doc.id
+        if doc_id not in fused_scores:
+            fused_scores[doc_id] = 0.0
+            payload_map[doc_id] = doc.payload
+
+        # RRF Formula: 1 / (k + rank)
+        fused_scores[doc_id] += 1.0 / (k + rank)
+
+sorted_ids = sorted(fused_scores.keys(), key=lambda x: fused_scores[x], reverse=True)
+...
+</code></pre>
+<p>```</p>
+<p><strong>Why $k=60$?</strong> This is the empirically established default from the original RRF paper. It provides a good balance: the top-ranked document in any single list receives score $\frac{1}{60+0} = 0.0167$, while rank 10 receives $\frac{1}{70} = 0.0143$. The difference is meaningful but not overwhelming, so a document appearing at rank 5 in <em>two</em> different lists scores higher than one appearing at rank 1 in only one list. This is the core intuition — <strong>consensus across retrieval methods is more valuable than dominance in a single method</strong>.</p>
+<h4>Why RRF Beats Cosine-Only in This System</h4>
+<ol>
+<li>
+<p><strong>Query Expansion amplifies it:</strong> The system generates 4 query variations. Each variation produces its own dense search result list. A chunk consistently appearing in top results across all 4 query framings gets a very high RRF score — a strong signal of genuine relevance. This is impossible with a single cosine search.</p>
+</li>
+<li>
+<p><strong>Exact terminology safety net:</strong> An exam schedule page that contains the exact string "End Semester Examination 2025-26" will be captured by the keyword search arm even if the query was phrased as "when are finals?" The RRF fusion ensures it still surfaces in the final ranked list.</p>
+</li>
+<li>
+<p><strong>Score normalization:</strong> Cosine similarity scores (0.0–1.0) and keyword match scores (assigned a flat 1.0) are not comparable. RRF uses only <em>rank positions</em>, so it is scale-invariant — no score normalization is needed.</p>
+</li>
+</ol>
+<hr />
+<h3>4.2 The Incremental Indexing Cache (<code>hash_store.json</code>)</h3>
+<h4>The Problem It Solves</h4>
+<p>Running a full re-ingestion of a university website every 6 hours would be extremely wasteful. The DTU website has thousands of pages. Most content (faculty lists, department pages, old notices) changes at most once a semester. Re-embedding and re-inserting identical content every 6 hours wastes:
+- Compute time on the GitHub Actions runner (free tier has limited minutes)
+- Unnecessary upsert operations to Qdrant Cloud</p>
+<h4>How the HashStore Works</h4>
+<p>The <code>HashStore</code> class (<code>ingestion/indexing/hash_store.py</code>) is a simple but powerful incremental processing gate. Its core is a JSON dictionary mapping <code>{url: sha256_hash_of_content}</code>.</p>
+<p><strong>The lifecycle during a pipeline run:</strong></p>
+<p>```
+┌─────────────────────────────────────────────────┐
+│ hash_store.json (persisted via GitHub Actions   │
+│ cache between runs)                              │
+│ {                                               │
+│   "https://dtu.ac.in/notice/1.html": "a3f2...", │
+│   "https://dtu.ac.in/notice/2.html": "b1c9..."  │
+│ }                                               │
+└───────────────────────────┬─────────────────────┘
+                            │ Load on startup
+                            ▼
+For each crawled document:
+  new_hash = SHA256(document.content)
+  old_hash = store.get(url)</p>
+<p>if old_hash == new_hash:
+      → SKIP (skipped_docs++)
+  else:
+      → Delete old Qdrant vectors for this URL
+      → Chunk → Embed → Upsert new vectors
+      → Update store[url] = new_hash
+      → Every 50 docs: save to disk (checkpoint)</p>
+<p>On full tier only:
+  deleted_urls = all_stored_urls - seen_urls
+  → Delete vectors for orphaned URLs from Qdrant
+  → Remove from store</p>
+<p>Final save → hash_store.json
+```</p>
+<h4>The GitHub Actions Cache Layer</h4>
+<p>The critical mechanism that makes this stateful across runs is the <strong>GitHub Actions cache</strong>:</p>
+<p>```yaml</p>
+<h1>From incremental-indexing.yml lines 44–48</h1>
+<ul>
+<li>name: Restore HashStore Cache
+  uses: actions/cache@v4
+  with:
+    path: hash_store.json
+    key: hash-store-${{ github.ref }}</li>
+</ul>
+<h1>Lines 79–84</h1>
+<ul>
+<li>name: Save HashStore Cache
+  uses: actions/cache/save@v4
+  if: always()  # Save even if the run partially fails
+  with:
+    path: hash_store.json
+    key: hash-store-${{ github.ref }}-${{ github.run_id }}
+```</li>
+</ul>
+<p><strong>The restore uses a branch-level key</strong> (<code>hash-store-main</code>), and <strong>the save includes a <code>run_id</code> suffix</strong>. This is a standard GitHub Actions pattern for rolling cache updates: the restore step finds the most recent cache matching the key prefix (<code>hash-store-main-*</code>), and the save step creates a new cache entry for this run, ensuring the next run picks up the latest state.</p>
+<p><strong>Result:</strong> On a 6-hour fast-tier run, if only 3 new notices were posted, the pipeline skips ~97% of crawled pages and only upserts ~30–100 new chunks. This is the difference between a 30-minute run and a 3-minute run.</p>
+<h4>The Two-Tier Strategy</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Schedule</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Fast</strong></td>
+<td>Every 6 hours</td>
+<td><code>start_urls = [notice board URL]</code>, <code>max_depth=1</code>, <code>max_pages=50</code>. Targets only pages likely to have new content.</td>
+</tr>
+<tr>
+<td><strong>Full</strong></td>
+<td>Every Sunday midnight</td>
+<td>Full crawl with all configured start URLs, <code>max_depth=2</code>, <code>max_pages=2000</code>. Also runs orphan detection (<code>get_deleted_urls</code>) to purge stale vectors.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3>4.3 Playwright vs. <code>requests</code> + BeautifulSoup — Dynamic JavaScript Rendering</h3>
+<h4>Why Static HTTP Clients Fail for University Sites</h4>
+<p>Modern institutional websites often use:
+- <strong>React / Angular / Vue SPAs</strong> where the initial HTML is a nearly empty <code>&lt;div id="root"&gt;</code>. The actual content is injected by JavaScript after the browser loads and executes scripts.
+- <strong>AJAX-fetched notice tables</strong> where a JavaScript function fires a <code>fetch()</code> call to an API endpoint and injects HTML into the DOM after the initial page load.
+- <strong>Server-Side Rendering with client-side hydration</strong> — the HTML contains data, but navigation and filtering are JavaScript-driven.</p>
+<p>A standard <code>requests.get(url)</code> call retrieves the raw HTML <em>before</em> any JavaScript executes. <code>BeautifulSoup</code> parsing this HTML would find an empty shell with no useful content.</p>
+<h4>How Crawl4AI + Playwright Solves This</h4>
+<p>Crawl4AI uses Playwright internally to launch a real Chromium browser instance. The call:</p>
+<p>```python</p>
+<h1>From web_crawler.py line 81</h1>
+<p>result = await crawler.arun(url=url)
+```</p>
+<p>Does the following under the hood:
+1. Opens the URL in a Chromium browser tab.
+2. Waits for the page's JavaScript to execute (network idle strategy).
+3. Waits for dynamic content to be injected into the DOM.
+4. Reads the <em>final rendered DOM</em> — the complete HTML as a human sees it.
+5. Converts the rendered HTML to clean Markdown (stored in <code>result.markdown</code>), stripping navigation menus, footers, scripts, and styles.</p>
+<p>The result is clean, structured text ready for chunking — no custom HTML parser needed. The GitHub Actions workflow installs Playwright Chromium:
+<code>yaml
+python -m playwright install chromium</code></p>
+<h4>The BFS Crawler Architecture</h4>
+<p>The <code>WebCrawler.extract()</code> method implements <strong>Breadth-First Search</strong> crawling:
+- It maintains a <code>queue</code> of <code>(url, depth)</code> tuples and a <code>visited</code> set.
+- <code>_is_valid_url()</code> restricts crawling to the <strong>base domain</strong> (e.g., only pages on <code>dtu.ac.in</code>), preventing the crawler from following external links.
+- PDF links are intercepted and added to <code>discovered_pdfs</code> set instead of being crawled as HTML pages.
+- The crawler respects <code>max_depth</code> and <code>max_pages</code> limits, making it controllable and preventing runaway crawls.</p>
+<h4>The PDF Processing Path</h4>
+<p>When PDFs are encountered, the <code>PDFConnector</code> → <code>PDFProcessor</code> pipeline handles them:
+1. <strong><code>httpx.AsyncClient</code></strong> downloads the PDF to a <code>tempfile.TemporaryDirectory()</code> — ensuring no disk clutter.
+2. <strong>PyMuPDF</strong> attempts direct text extraction (fast, for digitally-created PDFs).
+3. <strong>Tesseract OCR</strong> (<code>pytesseract</code>) is used as a fallback for scanned image-based PDFs.
+4. The text is yielded as a <code>Document</code> with <code>doc_type="pdf"</code>, processed through the same HashStore → Chunker → Embedder → Qdrant pipeline as web pages.</p>
+<p><strong>Priority sorting</strong> of PDFs before processing ensures resources are allocated to the most relevant content first:
+<code>python
+def sort_key(url):
+    if "2026" in u: return 0   # Current year notices first
+    if "2025" in u: return 1
+    if "ordinance" in u or "rule" in u: return 2  # Academic regulations
+    return 3</code></p>
+<hr />
+<h3>4.4 Query Expansion — The Hidden Multiplier</h3>
+<p>Before any search occurs, <code>QueryExpansionService.expand_query()</code> sends the user's original query to Gemini and asks it to generate 3 alternative phrasings using different vocabulary:</p>
+<p>```python</p>
+<h1>From query_expansion.py</h1>
+<p>prompt = """Generate 3 alternative search queries that mean the exact same thing 
+but use different vocabulary, synonyms, or official terminology 
+(e.g. "syllabus" -&gt; "scheme of teaching", "schedule" -&gt; "timeline")."""
+```</p>
+<p>If a student asks <em>"What are the attendance rules?"</em>, the expander might generate:
+- <code>"minimum attendance percentage requirement"</code>
+- <code>"presence policy for lectures and practicals"</code>
+- <code>"condonation of shortage of attendance criteria"</code></p>
+<p>Each of these 4 queries (original + 3 variations) is independently embedded and used in dense search. This dramatically increases the probability of finding the relevant chunk regardless of how its author worded it.</p>
+<hr />
+<h3>4.5 The Deterministic UUID Strategy for Chunks</h3>
+<p>This is a subtle but important implementation detail in <code>TextChunker.chunk_document()</code>:</p>
+<p><code>python
+content_hash = self._generate_hash(text)  # SHA-256 of chunk text
+namespace = uuid.NAMESPACE_URL
+deterministic_id = str(uuid.uuid5(namespace, content_hash))</code></p>
+<p>Each chunk's ID is a <strong>UUID v5</strong> (namespace UUID + SHA-256 hash). This means the same text always produces the same UUID. The consequence: if a page's content doesn't change and a re-ingestion occurs (bypassing the HashStore check, e.g., in a corrupted state), the Qdrant <code>upsert</code> call will simply overwrite the same point ID with identical data — <strong>it is idempotent</strong>. No duplicates are ever created.</p>
+<hr />
+<h2>5. Scalability &amp; System Limitations</h2>
+<h3>5.1 Current Bottlenecks</h3>
+<h4>Bottleneck 1: Single-Threaded Crawl per Run</h4>
+<p>The current crawler processes URLs sequentially in a BFS loop. While <code>Crawl4AI</code> is async internally, the pipeline processes one document at a time before moving to the next. At 2000 pages per full run, this is the primary time constraint.</p>
+<h4>Bottleneck 2: Embedding is CPU-Bound on the Runner</h4>
+<p>Running <code>SentenceTransformer</code> on a GitHub Actions <code>ubuntu-latest</code> runner (2-core CPU, 7GB RAM) is functional but slow. Batched inference helps, but embedding 10,000 chunks per run is still CPU-intensive.</p>
+<h4>Bottleneck 3: <code>lru_cache</code> on Singleton Services</h4>
+<p>The <code>get_embedder()</code> and <code>get_rag_service()</code> functions use Python's <code>@lru_cache</code>. This works correctly for a <strong>single-process</strong> deployment on Render, but breaks down if the server is scaled horizontally to multiple instances. Each instance would load its own copy of the SentenceTransformer model, and there is no shared state.</p>
+<h4>Bottleneck 4: Synchronous Qdrant Client Calls</h4>
+<p>The <code>QdrantStore</code> uses the synchronous Qdrant Python client (<code>client.query_points()</code>, <code>client.scroll()</code>). These are blocking calls inside async FastAPI handlers, which violates ASGI principles and creates a head-of-line blocking problem under high concurrency. The fix would be to use <code>asyncio.to_thread()</code> or the async Qdrant client.</p>
+<h4>Bottleneck 5: <code>hash_store.json</code> is a Flat File</h4>
+<p>At ~5,800 URLs (current size is 94KB), the flat JSON file is fine. At 100 universities with 20,000 URLs each (2,000,000 entries), it becomes a bottleneck to load, diff, and save. The file would be hundreds of megabytes.</p>
+<hr />
+<h3>5.2 Scaling to 100 Universities &amp; 100,000 Students</h3>
+<h4>Architecture Change 1: Message Queue for Crawling (Kafka / RabbitMQ)</h4>
+<p><strong>Current:</strong> A single GitHub Actions runner processes one university sequentially.</p>
+<p><strong>Scaled:</strong> A <strong>Kafka</strong> topic <code>crawl-jobs</code> receives one message per university per tier. Multiple <strong>crawler worker pods</strong> (running in Kubernetes) consume from this topic in parallel. Each pod handles one university's crawl, batches discovered URLs, and publishes <code>embed-jobs</code> to a downstream topic. An <code>embedding-worker</code> service consumes these, runs batched embedding, and publishes <code>index-jobs</code> to an <code>indexer-worker</code> that upserts to Qdrant.</p>
+<p><code>GitHub Actions (trigger only)
+        ↓
+  Kafka: crawl-jobs
+  ┌──────────┬──────────┬──────────┐
+  ▼          ▼          ▼          ▼
+Crawler   Crawler   Crawler   Crawler
+Worker 1  Worker 2  Worker 3  Worker N
+  └──────────┴──────────┴──────────┘
+        ↓
+  Kafka: embed-jobs
+        ↓
+  Embedding Workers (GPU-backed)
+        ↓
+  Kafka: index-jobs
+        ↓
+  Qdrant Distributed Cluster</code></p>
+<h4>Architecture Change 2: GPU-Backed Embedding Service</h4>
+<p>Replace CPU-based <code>SentenceTransformer</code> inference on GitHub Actions runners with a <strong>dedicated embedding microservice</strong> running on GPU hardware (AWS <code>g4dn.xlarge</code> or Google Cloud <code>n1-standard-4</code> with T4). A single T4 GPU can embed ~100,000 sentences per second vs. ~1,000/second on a CPU. The service exposes a gRPC endpoint: <code>EmbedBatch(texts: [str]) -&gt; vectors: [[float]]</code>.</p>
+<h4>Architecture Change 3: Horizontal Scaling of the FastAPI Backend</h4>
+<ul>
+<li>Replace Render single-instance with <strong>Kubernetes Deployment</strong> behind an <strong>NGINX Ingress Controller</strong> or AWS Application Load Balancer.</li>
+<li><strong>Each pod loads the SentenceTransformer model</strong> — this is memory-heavy (~500MB per pod). The fix is to route embedding requests to the external GPU embedding service instead of loading the model locally in each pod.</li>
+<li>Use <strong>Redis</strong> for rate limiting state (replacing the in-process <code>slowapi</code> limiter which does not share state across pods).</li>
+</ul>
+<h4>Architecture Change 4: Qdrant Distributed Cluster</h4>
+<p>Replace Qdrant Cloud's single-node free tier with a <strong>Qdrant distributed cluster</strong> with sharding:
+- Each university collection is sharded across multiple nodes.
+- <strong>Read replicas</strong> handle query traffic; <strong>write replicas</strong> handle ingestion upserts.
+- Use Qdrant's built-in replication factor of 2 for high availability.</p>
+<h4>Architecture Change 5: HashStore → Redis or PostgreSQL</h4>
+<p>Replace the flat <code>hash_store.json</code> file with a <strong>Redis hash map</strong> (<code>HSET university:dtu:url_hashes &lt;url&gt; &lt;sha256&gt;</code>) or a PostgreSQL table:</p>
+<p><code>sql
+CREATE TABLE url_hashes (
+    university_id VARCHAR(50),
+    url TEXT,
+    sha256_hash VARCHAR(64),
+    last_seen_at TIMESTAMP,
+    PRIMARY KEY (university_id, url)
+);</code></p>
+<p>This enables:
+- Concurrent writes from multiple crawlers (no file lock contention).
+- Efficient orphan detection via <code>WHERE last_seen_at &lt; current_run_timestamp</code>.
+- Historical hash tracking.</p>
+<h4>Architecture Change 6: Multi-Tenant Qdrant Namespacing</h4>
+<p>Currently, each university has its own Qdrant collection (e.g., <code>dtu_vectors</code>). At 100 universities, this means 100 collections. Qdrant handles this well, but the alternative is a <strong>single shared collection</strong> with <code>university_id</code> as a required payload filter on every query. The current per-collection approach is actually the correct multi-tenant design for isolation and access control — it scales to hundreds of universities without architectural changes.</p>
+<h4>Summary Table</h4>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Current (1 Uni)</th>
+<th>Scaled (100 Unis, 100K Users)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Crawler</strong></td>
+<td>GitHub Actions single runner</td>
+<td>Kafka + K8s crawler worker fleet</td>
+</tr>
+<tr>
+<td><strong>Embedder</strong></td>
+<td>CPU on Actions runner / per-pod</td>
+<td>Dedicated GPU embedding service</td>
+</tr>
+<tr>
+<td><strong>Vector DB</strong></td>
+<td>Qdrant Cloud free tier</td>
+<td>Qdrant distributed cluster with sharding</td>
+</tr>
+<tr>
+<td><strong>API</strong></td>
+<td>Render single instance</td>
+<td>K8s multi-pod + ALB</td>
+</tr>
+<tr>
+<td><strong>Rate Limiting</strong></td>
+<td>In-process slowapi</td>
+<td>Redis-backed distributed limiter</td>
+</tr>
+<tr>
+<td><strong>HashStore</strong></td>
+<td>Flat JSON file</td>
+<td>PostgreSQL or Redis hash map</td>
+</tr>
+<tr>
+<td><strong>LLM</strong></td>
+<td>OpenRouter (single key)</td>
+<td>Multiple OpenRouter keys + per-uni rate limits</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>6. Top 10 Technical Interview Questions &amp; Answers</h2>
+<hr />
+<h3>Q1: "Why did you use RRF instead of just taking the top results from a single vector search? Isn't cosine similarity already semantic?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>Cosine similarity is excellent for semantic proximity but has two critical weaknesses in a production RAG system. First, it can miss <strong>exact terminology</strong> — a notice containing "ordinance 5.3(a)" might not score well against a query vector for "attendance rules" even if they're semantically related. Second, it's <strong>sensitive to how a query is phrased</strong> — slight rewording can change the top-10 results significantly.</p>
+<p>I address both by running a 5-way hybrid search: 4 dense vector searches (one per LLM-generated query variation) and 1 exact keyword text search using Qdrant's <code>MatchText</code> filter. RRF then merges these 5 ranked lists using the formula <code>score += 1/(60 + rank)</code> for each list a document appears in.</p>
+<p>The key insight of RRF is that it uses only <strong>rank positions</strong>, not raw scores. This makes it scale-invariant — cosine scores (0–1) and keyword match scores (1.0 flat) are not comparable numbers, but their rank positions are. A document that consistently appears in the top-10 of multiple independent searches gets a high RRF score — and that consistency is a strong signal of genuine relevance. This is provably better than any single-list approach for heterogeneous retrieval.</p>
+<hr />
+<h3>Q2: "Your system prompt says 'ABSOLUTELY NO HALLUCINATION.' How do you technically enforce this? The LLM can still ignore instructions."</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>You're right that we can't cryptographically <em>prevent</em> hallucination — it's a probabilistic model. However, I apply three layers of defense:</p>
+<p><strong>Layer 1 — Architectural:</strong> The system is RAG-grounded. The LLM <em>only</em> sees the retrieved context chunks, not a broad general prompt. It literally cannot answer a question about "DTU exam schedule" from pre-training knowledge if the system prompt fills all the context with retrieved chunks.</p>
+<p><strong>Layer 2 — Prompt Engineering:</strong> The system prompt contains explicit, unconditional rules:
+1. "ABSOLUTELY NO HALLUCINATION. Never invent, guess, or pull information from pre-trained knowledge."
+2. "If the question cannot be answered from CONTEXT, reply exactly: 'I don't have enough information about that right now.'"
+3. "If context contains conflicting information, mention both and state where they were found."</p>
+<p>The temperature is also set to <strong>0.3</strong> — low temperature reduces creative generation and keeps the model closer to the distribution of its input context.</p>
+<p><strong>Layer 3 — Model Choice:</strong> Gemini 2.5 Flash is a model trained with strong instruction-following. Combined with low temperature and a highly structured system prompt, the practical hallucination rate is very low.</p>
+<p>The remaining risk is context stuffing — if 20 chunks are retrieved but none actually answers the question, the model might extrapolate. This is why the explicit refusal instruction in Rule #2 is critical.</p>
+<hr />
+<h3>Q3: "You mentioned <code>@lru_cache</code> on your dependency injection functions. What problem does this solve and what does it break?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p><code>@lru_cache</code> on <code>get_embedder()</code> and <code>get_rag_service()</code> ensures that expensive initialization — loading a 500MB SentenceTransformer model into memory — happens <strong>exactly once per process lifetime</strong>, no matter how many HTTP requests hit the server. Without it, every API request would re-instantiate the model from disk, which would be catastrophically slow (~5–10 seconds per request).</p>
+<p>However, it has a critical limitation: <strong>it only works correctly in a single-process deployment</strong>. If I horizontally scale to 4 FastAPI pods, each pod has its own process with its own <code>lru_cache</code> instance. Each pod loads its own copy of the model — 4 × 500MB = 2GB of RAM wasted on model copies. There's no shared memory between processes in standard Python.</p>
+<p>The correct solution at scale is to extract the embedding functionality into a <strong>dedicated embedding microservice</strong> — a separate process (or pod) that loads the model once and serves embedding requests via gRPC or HTTP. The FastAPI pods then become stateless and can be scaled freely.</p>
+<p>Additionally, <code>@lru_cache</code> has no TTL — if I update the Qdrant URL or API key via environment variable changes, the old cached <code>QdrantStore</code> instance persists until the process restarts.</p>
+<hr />
+<h3>Q4: "Walk me through the exact data flow from a user typing a question to receiving an answer."</h3>
+<p><strong>Ideal Answer:</strong></p>
+<ol>
+<li><strong>Frontend</strong> posts <code>{university_id: "dtu", query: "attendance rules", stream: true}</code> to <code>POST /api/v1/chat</code>.</li>
+<li><strong>FastAPI middleware</strong> assigns a <code>request_id</code> UUID, checks the rate limit (30 req/min per IP via <code>slowapi</code>), and passes the request down.</li>
+<li><strong>Dependency injection</strong> provides the singleton <code>RAGService</code> instance.</li>
+<li><strong><code>RAGService.retrieve_context()</code></strong> is called:</li>
+<li><code>QueryExpansionService.expand_query()</code> calls Gemini to generate 3 alternative phrasings → 4 total queries.</li>
+<li>For each of the 4 queries, <code>LocalEmbedder.embed_query()</code> produces a 384-dim vector.</li>
+<li><code>QdrantStore.search()</code> runs ANN cosine search, retrieving top-40 results per query → 4 dense result lists.</li>
+<li><code>QdrantStore.text_search()</code> runs <code>MatchText</code> keyword filter on original query → 1 keyword result list.</li>
+<li><code>_reciprocal_rank_fusion()</code> merges all 5 lists using <code>score += 1/(60+rank)</code> per document per list, returns top-40 by fused score.</li>
+<li><code>CrossEncoderReranker.rerank()</code> scores each of the 40 <code>(query, chunk_text)</code> pairs using <code>ms-marco-MiniLM-L-6-v2</code>, sorts, returns top-20.</li>
+<li><strong><code>RAGService.chat_stream()</code></strong> builds the system prompt with 20 context chunks and sends to <code>OpenRouterService.generate_response_stream()</code>.</li>
+<li>The service calls <code>openrouter.ai/api/v1/chat/completions</code> with <code>stream: true</code> using <code>httpx.AsyncClient.send(req, stream=True)</code>.</li>
+<li><strong>FastAPI's <code>StreamingResponse</code></strong> reads chunks from the <code>aiter_lines()</code> async generator, parsing SSE events, and forwards them to the browser.</li>
+<li>The <strong>React frontend</strong> listens to the SSE stream, first receiving a <code>{type: "sources", data: [...]}</code> event (displaying citation links), then <code>{type: "chunk", content: "..."}</code> events that append text to the UI in real-time.</li>
+</ol>
+<hr />
+<h3>Q5: "What happens if Qdrant Cloud goes down during a user query?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>Currently, the failure mode is a 500 error. The <code>QdrantStore.search()</code> method has a <code>try/except</code> that logs the error and returns an empty list <code>[]</code>. The RAG orchestrator would then call the LLM with zero context chunks, resulting in the LLM refusing to answer per its system prompt rules — the user gets "I don't have enough information about that right now."</p>
+<p>This is actually a safe failure mode — the user gets an honest refusal rather than a hallucinated answer. However, the 500 HTTP response from the FastAPI layer is not ideal for the frontend.</p>
+<p>Improvements I would make:
+1. <strong>Circuit breaker pattern</strong> — after N consecutive Qdrant failures, fast-fail all requests for a cooldown period rather than hammering a down service.
+2. <strong>Health check endpoint</strong> — <code>/api/v1/health</code> already checks <code>vector_store.check_health()</code> (a <code>get_collections()</code> call). A load balancer health check on this endpoint would route traffic away from a pod with a broken Qdrant connection.
+3. <strong>Graceful degradation</strong> — return a specific error message to the frontend: "The knowledge base is temporarily unavailable. Please try again in a few minutes." with a 503 status.</p>
+<hr />
+<h3>Q6: "Why do you use Server-Sent Events (SSE) for streaming instead of WebSockets?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>SSE and WebSockets both enable server-push communication, but they have fundamentally different characteristics:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>SSE</th>
+<th>WebSockets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Direction</strong></td>
+<td>Server → Client (unidirectional)</td>
+<td>Bidirectional</td>
+</tr>
+<tr>
+<td><strong>Protocol</strong></td>
+<td>HTTP/1.1 or HTTP/2</td>
+<td>WebSocket protocol (ws://)</td>
+</tr>
+<tr>
+<td><strong>Complexity</strong></td>
+<td>Simple — just HTTP with <code>text/event-stream</code> content type</td>
+<td>Requires upgrade handshake, custom server management</td>
+</tr>
+<tr>
+<td><strong>Reconnection</strong></td>
+<td>Automatic browser reconnect built-in</td>
+<td>Must implement manually</td>
+</tr>
+<tr>
+<td><strong>Proxy/CDN</strong></td>
+<td>Works through standard HTTP proxies</td>
+<td>May require specific proxy configuration</td>
+</tr>
+</tbody>
+</table>
+<p>For a chat use case, <strong>the user sends one query (HTTP POST) and receives a streaming text response</strong>. This is purely unidirectional server-push after the initial POST — exactly what SSE was designed for. There is no need for the client to push data <em>during</em> the stream. WebSockets would add unnecessary complexity.</p>
+<p>In the implementation, <code>StreamingResponse(rag_service.chat_stream(...), media_type="text/event-stream")</code> leverages FastAPI's native support. The <code>chat_stream()</code> method yields properly formatted SSE messages (<code>data: {...}\n\n</code>) directly as an async generator, which FastAPI streams to the client with zero buffering. This integrates cleanly with Vercel's edge infrastructure.</p>
+<hr />
+<h3>Q7: "Your TextChunker uses a sliding window with word-boundary splitting. What's the limitation of this approach, and what would a production-grade chunker do differently?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>The current chunker (<code>_sliding_window_split</code>) is a <strong>word-count-based sliding window</strong> that splits text when the character count exceeds <code>chunk_size=1000</code>. The <code>chunk_overlap=200</code> backtrack ensures context continuity across chunk boundaries.</p>
+<p><strong>Limitations:</strong></p>
+<ol>
+<li>
+<p><strong>Semantically agnostic:</strong> It can split a paragraph mid-sentence, or cut through a list item, destroying the semantic coherence of a chunk. The chunk boundary is determined purely by character count, not meaning.</p>
+</li>
+<li>
+<p><strong>Ignores document structure:</strong> A page might have H1 headings, tables, and bullet lists. The chunker treats all of this as flat text. A chunk might start mid-table or contain a heading followed by content from a different section.</p>
+</li>
+<li>
+<p><strong>No metadata enrichment:</strong> Chunks don't inherit contextual information about <em>where they appear</em> in the document (e.g., "this chunk came from the section titled 'Examination Rules'").</p>
+</li>
+</ol>
+<p><strong>Production improvements:</strong></p>
+<ol>
+<li>
+<p><strong>Semantic chunking:</strong> Use sentence-boundary-aware splitting. Libraries like <code>langchain.text_splitter.RecursiveCharacterTextSplitter</code> with <code>separators=["\n\n", "\n", ". "]</code> are more semantically aware. More advanced approaches use a sentence embedding model to group semantically related sentences together.</p>
+</li>
+<li>
+<p><strong>Markdown-structure-aware chunking:</strong> Since Crawl4AI returns Markdown, parse it to identify <code>#</code>, <code>##</code> headings. Each major section becomes a chunk with the heading text prepended as context (<code>"## Examination Policy\n\n&lt;text&gt;"</code>). This is called <strong>contextual chunking</strong>.</p>
+</li>
+<li>
+<p><strong>Late chunking / proposition splitting:</strong> Newer approaches (e.g., <code>chonkie</code> library) split text into individual propositions/facts rather than fixed-length windows, improving retrieval precision significantly.</p>
+</li>
+</ol>
+<hr />
+<h3>Q8: "What is Scalar INT8 Quantization in Qdrant and why did you enable it?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>Vector quantization is a technique to compress floating-point vectors into a lower-precision representation. In the Qdrant configuration:</p>
+<p><code>python
+quantization_config=models.ScalarQuantization(
+    scalar=models.ScalarQuantizationConfig(
+        type=models.ScalarType.INT8,
+        quantile=0.99,
+        always_ram=True
+    )
+)</code></p>
+<p><strong>What it does:</strong> Original vectors are <code>float32</code> (32 bits per dimension). INT8 quantization maps each <code>float32</code> value to an <code>int8</code> value (8 bits) by calibrating the range based on the 99th percentile of observed values (<code>quantile=0.99</code>). This means: </p>
+<ul>
+<li><strong>Memory reduction:</strong> 32-bit → 8-bit = <strong>4× smaller vectors</strong>. For 384-dimensional vectors: <code>384 × 4 bytes = 1.5KB</code> per vector → <code>384 × 1 byte = 384 bytes</code> per vector. At 100,000 vectors, that's 150MB → 37.5MB.</li>
+<li><strong>Speed improvement:</strong> Smaller vectors fit better in CPU cache. SIMD operations on INT8 are faster than on FLOAT32.</li>
+<li><strong>Trade-off:</strong> A small accuracy loss (~0.5–1% drop in recall). The <code>quantile=0.99</code> means outlier values (top 1%) are clipped, which is an acceptable trade-off for the massive memory savings.</li>
+<li><strong><code>always_ram=True</code>:</strong> Keeps the quantized vectors in RAM (not memory-mapped from disk), ensuring consistently fast ANN search latency.</li>
+</ul>
+<p>This was specifically chosen because the project uses <strong>Qdrant Cloud's free tier</strong>, which has RAM constraints. Without quantization, the collection would overflow the free tier at ~100,000 vectors.</p>
+<hr />
+<h3>Q9: "If a notice gets deleted from the university website, how does your system detect and remove it from Qdrant?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>This is handled by the <strong>full-tier</strong> run every Sunday midnight, using the <code>HashStore.get_deleted_urls()</code> method.</p>
+<p>The logic is elegant: the <code>HashStore</code> tracks two sets during a crawl run:
+1. <code>self.store</code> — all URLs that have been indexed (ever seen and processed).
+2. <code>self.seen_urls</code> — all URLs encountered in the <em>current</em> crawl run.</p>
+<p><code>python
+def get_deleted_urls(self) -&gt; List[str]:
+    all_stored_urls = set(self.store.keys())
+    deleted_urls = all_stored_urls - self.seen_urls
+    return list(deleted_urls)</code></p>
+<p>Any URL in <code>store</code> but <em>not</em> in <code>seen_urls</code> means the page was not reachable during the current full crawl — it was either deleted, redirected, or blocked. These are "orphaned" URLs.</p>
+<p>In <code>main.py</code> (lines 168–183):
+<code>python
+if tier == "full":
+    deleted_urls = hash_store.get_deleted_urls()
+    for url in deleted_urls:
+        vector_store.client.delete(
+            collection_name=collection_name,
+            points_selector=models.Filter(
+                must=[models.FieldCondition(key="source_url", match=models.MatchValue(value=url))]
+            )
+        )
+        hash_store.remove_url(url)</code></p>
+<p>All Qdrant vectors with <code>payload.source_url == deleted_url</code> are deleted, and the URL is removed from the store.</p>
+<p><strong>Why only on full tier?</strong> Fast-tier runs only crawl the notice board, not the entire site. A page not found during a fast run might simply not have been in the crawl scope — it can't be assumed deleted. Only a complete full crawl has the coverage to make a reliable determination that a page is truly gone.</p>
+<hr />
+<h3>Q10: "Your system is currently deployed on Render's free tier. What specific problems will you hit if traffic spikes to 1,000 concurrent users?"</h3>
+<p><strong>Ideal Answer:</strong></p>
+<p>Several failure modes would manifest simultaneously:</p>
+<p><strong>1. Render Free Tier Sleep:</strong> Render free tier instances spin down after 15 minutes of inactivity. A cold start requires loading the SentenceTransformer model (~500MB) into memory, which takes 5–10 seconds. The first user after a sleep would experience a timeout.</p>
+<p><strong>2. Rate Limiter Becomes a Bottleneck:</strong> The <code>slowapi</code> rate limiter with <code>default_limits=["30/minute"]</code> is in-process. At 1,000 concurrent users, even if we don't hit the 30/min limit, the limiter's <code>get_remote_address</code> function call adds per-request overhead. More critically, if we scale to multiple instances, the in-process limiter state is not shared — each instance allows 30/min, effectively multiplying the limit by the number of instances.</p>
+<p><strong>3. Synchronous Qdrant Client Blocks the Event Loop:</strong> As mentioned, <code>QdrantStore.search()</code> uses the synchronous Qdrant client, which makes blocking I/O calls inside an async handler. Under 1,000 concurrent users, this means hundreds of async event loop iterations are blocked waiting for Qdrant responses, destroying the throughput benefit of async Python.</p>
+<p><strong>4. Per-Pod Model Loading at Scale:</strong> If we scale to 4 pods to handle load, each pod loads a 500MB model — 2GB of RAM just for model weights. On Render's paid tier (512MB–2GB per instance), this is prohibitively expensive.</p>
+<p><strong>5. OpenRouter Rate Limits:</strong> OpenRouter imposes per-key rate limits. At 1,000 users, each triggering a query expansion (1 LLM call) + generation (1 LLM call) = 2,000 LLM requests, this will hit rate limits quickly.</p>
+<p><strong>Solutions:</strong>
+- Move to Render's paid tier or to a proper K8s deployment.
+- Replace sync Qdrant client with async client (or <code>asyncio.to_thread</code> wrappers).
+- Extract embedding model to a dedicated service.
+- Use multiple OpenRouter API keys with round-robin routing.
+- Redis-backed distributed rate limiting.</p>
+<hr />
+<p><em>End of Study Guide — CampusMind AI</em></p>
+<hr />
+<blockquote>
+<p><strong>Generated from direct analysis of project source files:</strong>
+- <code>backend/app/services/rag/orchestrator.py</code>
+- <code>backend/app/services/retrieval/reranker.py</code>
+- <code>backend/app/services/retrieval/query_expansion.py</code>
+- <code>backend/app/services/vector_store/qdrant_store.py</code>
+- <code>backend/app/services/llm/openrouter.py</code>
+- <code>backend/app/api/v1/chat.py</code>
+- <code>backend/app/api/deps.py</code>
+- <code>backend/app/api/middleware.py</code>
+- <code>ingestion/main.py</code>
+- <code>ingestion/indexing/hash_store.py</code>
+- <code>ingestion/connectors/web_crawler.py</code>
+- <code>ingestion/connectors/pdf_connector.py</code>
+- <code>ingestion/chunking/text_chunker.py</code>
+- <code>.github/workflows/incremental-indexing.yml</code></p>
+</blockquote>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>
